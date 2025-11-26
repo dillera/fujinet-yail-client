@@ -49,8 +49,11 @@ make TARGETS="atari" all
 The YAIL client connects to a backend server that provides the images to be displayed. The default server URL is defined in `src/atari/settings.c` on line 16:
 
 ```c
-#define DEFAULT_URL "N:TCP://fujinet.online:5556/"
+#define DEFAULT_URL "N:TCP://fisheye.diller.org:5556/"
 ```
+
+### Memory Layout Note (Atari)
+The Atari implementation requires careful memory management due to the ANTIC chip's 4K boundary limitations. The framebuffer is split into blocks to avoid crossing these boundaries. The `framebuffer` array in `src/atari/welcome_splash.h` includes padding to accommodate the gaps introduced by this splitting. Ensure any modifications to the display list or image loading logic respect these 4K boundaries to prevent display corruption and crashes.
 
 To change the default server:
 
