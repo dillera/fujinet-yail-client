@@ -71,38 +71,7 @@ typedef struct _DLDef
     DLModeDef modes[MAX_MODE_DEFS]; // compact definition of the display list
 } DLDef;
 
-typedef struct image_header
-{
-    unsigned char v1;
-    unsigned char v2;
-    unsigned char v3;
-    unsigned char gfx;
-} ImageHeader;
-
-typedef struct block_header_v13
-{
-    unsigned char memtkn;
-    short size;
-} BlockHeaderV13;
-
-// Block types
-#define DL_BLOCK 0x04
-#define XDL_BLOCK 0x05
-#define PALETTE_BLOCK 0x06
-#define IMAGE_BLOCK 0x07
-#define ERROR_BLOCK 0xFF         // Sent when the server needs to report an error
-typedef struct block_header_v14
-{
-    uint8_t block_type;
-    uint32_t size;
-} BlockHeaderV14;
-
-//
-typedef struct image_data
-{
-    ImageHeader header;
-    byte* data;
-} ImageData;
+typedef FileHeader ImageHeader;
 
 void saveCurrentGraphicsState(void);
 void restoreGraphicsState(void);

@@ -13,11 +13,16 @@
 #define FN_URL_KEY_ID 0x01
 #define FN_GFX_KEY_ID 0x02
 
+#ifdef YAIL_URL
+#define DEFAULT_URL YAIL_URL
+#else
 #define DEFAULT_URL "N:TCP://192.168.251.209:5556/"
+#endif
+
 #define DEFAULT_GFX_MODE GRAPHICS_8
 
 // Globals
-Settings settings;
+extern Settings settings;
 
 // Externals
 extern byte buff[];

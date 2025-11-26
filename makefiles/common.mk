@@ -16,3 +16,7 @@ else
 endif
 
 CFLAGS += -Osir
+
+ifdef URL
+	CFLAGS += -DYAIL_URL=\"$(URL)\"
+endif

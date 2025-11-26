@@ -108,6 +108,7 @@ char process_command(byte ntokens)
         "quit - Exit this utility\n\r"
         "cls  - Clear the image display\n\r"
         "gfx  - [0,8,9,*] Set the graphics mode\n\r"
+        "info - Show current settings\n\r"
         "set  - Saved settings\n\r"
         "       server [url] (N:TCP://blah.duh/)\n\r"
         #ifdef YAIL_BUILD_FILE_LOADER

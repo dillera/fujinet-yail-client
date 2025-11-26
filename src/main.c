@@ -1,16 +1,13 @@
+#include "stdint_shim.h"
 #include "console.h"
-#include "graphics.h"
 #include "files.h"
 #include "utility.h"
 #include "netimage.h"
 #include "settings.h"
 #include "version.h"
-#include "utility.h"
+#include "system.h"
 
-#include <atari.h>
 #include <conio.h>
-#include <peekpoke.h>
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -20,18 +17,17 @@ char version[] = "YAIL (Yet Another Image Loader) v" TOSTR(MAJOR_VERSION) "." TO
 
 byte buff[256]; // A block of memory to be used by all.
 bool done = false;
-extern Settings settings;
-extern ushort ORIG_VBII_SAVE;
+Settings settings;
 
 void help()
 {
-    cputs("Usage: yail [OPTIONS]\r\n");
+    cputs("Usage: yail [OPTIONS]\r\n"
           "  -h this message\r\n"
     #ifdef YAIL_BUILD_FILE_LOADER
           "  -l <filename> load image file\r\n"
     #endif
           "  -u <url> use this server address\r\n"
-          "  -s <tokens> search terms\r\n";
+          "  -s <tokens> search terms\r\n");
 }
 
 void process_command_line(char* argv[])
@@ -59,12 +55,13 @@ void process_command_line(char* argv[])
 //
 int main(int argc, char* argv[])
 {
-    // Convert the version string to internal code format
-    atascii_to_internal(version, 40);
+    // System initialization (handles version conversion, graphics init, settings, etc)
+    sys_init();
 
     //
     if(argc > 1)
     {
+        sys_process_args(argv); // Allow platform specific processing
         process_command_line(argv);
         return 0;
     }
@@ -73,21 +70,11 @@ int main(int argc, char* argv[])
         // Clear the edit buffer so as not to confuse our console code.
         clrscr();
 
-        // Initialize the frame buffer
-        saveCurrentGraphicsState();
-
-        // Initialize the settings.  Set defaults if no saved settings are found.
-        get_settings();
-
-        // Stop the attract mode
-        ORIG_VBII_SAVE = OS.vvblki;
-        add_attract_disable_vbi();
-
         while(!done)
         {
-            if(kbhit())
+            if(sys_key_pressed())
             {
-                char ch = cgetc();
+                char ch = sys_get_key();
                 if(ch == CH_ESC)
                     break;
                 if(ch == CH_ENTER)
@@ -98,9 +85,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        setGraphicsMode(GRAPHICS_0);
-        restoreGraphicsState();
-        clrscr();
+        sys_cleanup();
     }
 
     return 0;
