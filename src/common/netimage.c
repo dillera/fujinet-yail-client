@@ -151,6 +151,20 @@ char stream_image(char* args[])
             goto quit;
         }
 
+        #ifdef __ATARI__
+        // Auto-switch to Gr.9 if server sends Gr.9 data (Mode 4) but we are in Gr.10 or Gr.11
+        // This handles the case where Server downgrades unsupported modes.
+        if (image.header.gfx == GRAPHICS_9)
+        {
+             byte current_mode = settings.gfx_mode & 0x1F;
+             if (current_mode == GRAPHICS_10 || current_mode == GRAPHICS_11)
+             {
+                 setGraphicsMode(GRAPHICS_9);
+                 settings.gfx_mode = GRAPHICS_9;
+             }
+        }
+        #endif
+
         // Read the block information, unused for now
         if(image.header.v2 < 4)
         {
