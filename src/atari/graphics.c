@@ -48,6 +48,7 @@ void* VDSLIST_STATE = 0;
 byte ORG_GPRIOR = 0x0;
 byte NMI_STATE = 0x0;
 byte ORG_COLOR1, ORG_COLOR2, ORG_COLOR4;
+unsigned ORG_SAVMSC = 0;
 DLDef dlDef;
 ImageData image = { {0, 0, 0, 0}, framebuffer };
 
@@ -101,6 +102,7 @@ void saveCurrentGraphicsState(void)
     ORG_COLOR1 = OS.color1;
     ORG_COLOR2 = OS.color2;
     ORG_COLOR4 = PEEK(COLOR4);
+    ORG_SAVMSC = OS.savmsc;
 }
 
 void restoreGraphicsState(void)
@@ -112,6 +114,7 @@ void restoreGraphicsState(void)
     OS.color2 = ORG_COLOR2;
     POKE(COLOR4, ORG_COLOR4);
     OS.gprior = ORG_GPRIOR;       // restore priority states
+    OS.savmsc = ORG_SAVMSC;
     OS.botscr = 24;
 }
 
@@ -134,6 +137,7 @@ void setGraphicsMode(const byte mode)
             OS.sdlst = ORG_SDLIST;
             ANTIC.nmien = NMIEN_VBI; //NMI_STATE;
             OS.vdslst = VDSLIST_STATE;
+            OS.savmsc = ORG_SAVMSC;
             OS.botscr = 24;
         break;
 
