@@ -23,33 +23,40 @@ extern Settings settings;
 
 uint8_t platform_load_image_block(const char* url, uint8_t block_type, uint32_t size, uint16_t block_index)
 {
-    static uint32_t image_offset = 0;
+    static uint16_t image_offset = 0;
 
     // Reset offset if it's the first block (or logic to detect start)
     // Note: block_index comes from the loop in common/netimage.c.
     // If there are multiple types of blocks (palette, etc), index increments.
     // We should reset    static uint32_t image_offset = 0;
 
-    // Debug: Print block index and current offset
-    cprintf("Blk: %d Off: %ld\r\n", block_index, image_offset);
+    // Debug: Print block index, type, size, offset
+    // cprintf("L B%d T%d S%ld\r\n", block_index, block_type, size);
     
     // Check alignment
     if (((uint16_t)image.data & 0xFFF) != 0)
     {
-        cprintf("ALIGN ERR: %p\r\n", image.data);
+        // cprintf("ALIGN ERR: %p\r\n", image.data);
     }
 
     if (block_index == 0)
     {
         image_offset = 0;
-        cprintf("Offset Reset\r\n");
+        // cprintf("Offset Reset\r\n");
     }
     
-    // Safety check: Prevent buffer overflow
-    if (image_offset >= 17000)
+    // Safety check to prevent buffer overflow
     {
-        cprintf("Overflow! Resetting.\r\n");
-        image_offset = 0;
+        // VBXE modes need more space (320x240 = 76800 bytes)
+        uint32_t max_offset = 17000;
+        if ((settings.gfx_mode & 0x1F) >= GRAPHICS_20)
+            max_offset = 80000;
+
+        if (image_offset >= max_offset)
+        {
+            // cprintf("Offset Reset R M%x O%ld\r\n", settings.gfx_mode, image_offset);
+            image_offset = 0;
+        }
     }
 
     if(block_type == BLOCK_LEGACY)
@@ -73,23 +80,52 @@ uint8_t platform_load_image_block(const char* url, uint8_t block_type, uint32_t 
             if ((settings.gfx_mode & 0x1F) >= GRAPHICS_20)
             {
                 // VBXE Mode
-                // Clear image
-                clear_vbxe();
-
-                // Enable the VBXE XDL.
-                VBXE->VIDEO_CONTROL = 0x03;
-
-                // Load the image data.
+                if (!VBXE)
                 {
-                    uint16_t j;
-                    for(j = 0; j < 19; ++j)
+                    cprintf("VBXE NOT DETECTED!\r\n");
+                    return 1;
+                }
+
+                // Clear image only at the start of IMAGE data
+                if (image_offset == 0)
+                {
+                    clear_vbxe();
+                    // Enable the VBXE XDL.
+                    VBXE->VIDEO_CONTROL = 0x03;
+                }
+
+                // Load the image data chunk
+                {
+                    uint32_t bytes_remaining = size;
+                    uint16_t bytes_to_read;
+                    uint8_t bank;
+                    uint16_t bank_offset;
+                    uint16_t space_in_bank;
+
+                    while (bytes_remaining > 0)
                     {
-                        uint16_t byte_to_read = 4096;
-                        if(j == 18)
-                            byte_to_read = 3072;
-                        VBXE->MEM_BANK_SEL = 128 + j;  // MOVE WINDOW STARTING $0000
-                        if(!read_response_wait(url, XDL, byte_to_read))
+                        // Calculate bank and offset
+                        bank = (uint8_t)((image_offset >> 12) & 0xFF);
+                        bank_offset = image_offset & 0xFFF;
+
+                        // Select bank
+                        VBXE->MEM_BANK_SEL = 128 + bank;  // MOVE WINDOW STARTING $0000 (Window at 0x8000 via XDL pointer)
+
+                        // Calculate how many bytes we can write in this bank
+                        space_in_bank = 4096 - bank_offset;
+                        
+                        // Determine read size for this chunk
+                        bytes_to_read = (bytes_remaining < space_in_bank) ? (uint16_t)bytes_remaining : space_in_bank;
+
+                        // Read into the XDL window (0x8000) + offset
+                        if(!read_response_wait(url, XDL + bank_offset, bytes_to_read))
+                        {
+                            show_error("Error reading VBXE data\n");
                             return 1;
+                        }
+
+                        image_offset += bytes_to_read;
+                        bytes_remaining -= bytes_to_read;
                     }
                 }
             }
@@ -135,36 +171,49 @@ uint8_t platform_load_image_block(const char* url, uint8_t block_type, uint32_t 
             }
             break;
         case PALETTE_BLOCK:  // Palette
-            VBXE->CSEL = 0x00;
-            VBXE->PSEL = 0x01;
             {
-                uint8_t* palette = (uint8_t*)malloc((uint16_t)size);
-                if(NULL == palette)
+                uint16_t i;
+                uint8_t rgb[3];
+
+                // Select Palette 1 (used by XDL)
+                VBXE->PSEL = 1;
+
+                // Read 256 RGB triplets (768 bytes)
+                for(i = 0; i < 256; ++i)
                 {
-                    show_error("Error allocating palette buffer\n");
-                    return 1;
+                    // Read RGB triplet
+                    if(!read_response_wait(url, rgb, 3)) return 1;
+
+                    // Set Color Index
+                    VBXE->CSEL = (uint8_t)i;
+                    
+                    // Write RGB
+                    VBXE->CR = rgb[0];
+                    VBXE->CG = rgb[1];
+                    VBXE->CB = rgb[2];
                 }
-                if(!read_response_wait(url, palette, (uint16_t)size))
-                {
-                    show_error("Error reading palette\n");
-                    free(palette);
-                    return 1;
-                }
-                {
-                    uint16_t j;
-                    for(j = 0; j < (uint16_t)size; j+=3)
-                    {
-                        VBXE->CR = palette[j+0];
-                        VBXE->CG = palette[j+1];
-                        VBXE->CB = palette[j+2];
-                    }
-                }
-                free(palette);
             }
             break;
         case XDL_BLOCK:
         default:
-            // For now just consume or ignore.
+            // Consume the data to keep stream synchronized
+            {
+                uint32_t bytes_remaining = size;
+                uint16_t bytes_to_read;
+                // Use global buff to avoid "Too many local variables" error
+                // uint8_t trash[256];
+
+                while (bytes_remaining > 0)
+                {
+                    bytes_to_read = (bytes_remaining < 256) ? (uint16_t)bytes_remaining : 256;
+                    if(!read_response_wait(url, (uint8_t*)buff, bytes_to_read))
+                    {
+                        show_error("Error skipping block data\n");
+                        return 1;
+                    }
+                    bytes_remaining -= bytes_to_read;
+                }
+            }
             break;
     }
 

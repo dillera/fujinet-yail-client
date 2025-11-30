@@ -13,21 +13,23 @@
 #define MAX_LINE_LEN 40
 
 // Block types
-#define IMAGE_BLOCK 0
-#define PALETTE_BLOCK 1
-#define ERROR_BLOCK 2
-#define XDL_BLOCK 3
+// Block types
+#define DL_BLOCK 4
+#define XDL_BLOCK 5
+#define PALETTE_BLOCK 6
+#define IMAGE_BLOCK 7
+#define ERROR_BLOCK 255
 
 typedef struct
 {
-    uint16_t size;
     uint8_t block_type;
+    uint16_t size;
 } BlockHeaderV13;
 
 typedef struct
 {
-    uint32_t size;
     uint8_t block_type;
+    uint32_t size;
 } BlockHeaderV14;
 
 signed char enable_network(const char* url);

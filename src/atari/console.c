@@ -105,19 +105,26 @@ char process_command(byte ntokens)
         setGraphicsMode(GRAPHICS_0);
         //const char help[] =
         cputs(
-        "quit - Exit this utility\n\r"
-        "cls  - Clear the image display\n\r"
-        "gfx  - [0,8,9,*] Set the graphics mode\n\r"
-        "info - Show current settings\n\r"
-        "set  - Saved settings\n\r"
-        "       server [url] (N:TCP://blah.duh/)\n\r"
+        "quit\n\r"
+        "cls\n\r"
+        "gfx <mode>\n\r"
+        " 0:Text\n\r"
+        " 8:320x220 Mono\n\r"
+        " 9:80x220 16S\n\r"
+        " 10:80x220 9C\n\r"
+        " 11:80x220 16C\n\r"
+        " 20:VBXE 320x240\n\r"
+        " 21:VBXE 640x240\n\r"
+        " *:Rnd\n\r"
+        "info\n\r"
+        "set server <url>\n\r"
         #ifdef YAIL_BUILD_FILE_LOADER
-        "load - [filename] Load and display file\n\r"
-        "save - [filename] Save image to YAI file\n\r"
+        "load <file>\n\r"
+        "save <file>\n\r"
         #else
-        "search - [arg0...argN] Find images\n\r"
-        "gen    - [arg0...argN] Create AI images\n\r"
-        "video  - Stream video\n\r"
+        "search <args>\n\r"
+        "gen <args>\n\r"
+        "video\n\r"
         #endif
         );
 

@@ -15,13 +15,15 @@ extern byte framebuffer[];
 
 struct __vbxe* VBXE = NULL; // Empty if there is no VBXE present
 
-void setup_VBXE(void)
+void detect_VBXE(void)
 {
+    if (VBXE) return; // Already detected
+
     // The memory window to the VBXE
     if(VBXE_D640.CORE_VERSION != 0x10 && (VBXE_D640.MINOR_BERSION & 0x70) != 0x20) {
         // Try the second address
         if(VBXE_D740.CORE_VERSION != 0x10 && (VBXE_D740.MINOR_BERSION & 0x70) != 0x20) {
-            show_error("VBXE not detected\n\r");
+            // show_error("VBXE not detected\n\r"); // Don't show error on auto-detect
             return;
         }
         else
@@ -29,6 +31,20 @@ void setup_VBXE(void)
     }
     else
         VBXE = &VBXE_D640;
+
+    // cprintf("VBXE DETECTED\n\r");
+}
+
+void setup_VBXE(void)
+{
+    if (!VBXE)
+        detect_VBXE();
+
+    if (!VBXE)
+    {
+        show_error("VBXE not detected\n\r");
+        return;
+    }
 
     //cprintf("VBXE detected, %04X\n\r", VBXE);
 
@@ -48,22 +64,27 @@ void setup_VBXE(void)
     VBXE->MEM_BANK_SEL = 128 + 21;
 
     // Setup XDL
-    XDL[0] = XDLC_GMON | XDLC_RPTL | XDLC_OVADR; // OVERLAY, REPEAT, SET OVADR
-    //if(GRAPHICS_20 == settings.gfx_mode)
-        XDL[1] = XDLC_ATT | XDLC_END; // ATTRIB, END XDL
-    //else if(GRAPHICS_21 == settings.gfx_mode)
-    //    XDL[1] = XDLC_ATT | XDLC_HR | XDLC_END; // ATTRIB, HR, END XDL
-    XDL[2] = 239; // Repeat 239 lines
-    // Overlay location (0x0000)
+    // XDL Structure: [Instruction 2 bytes] [Address 3] [Step 2] [Attribute 2] [Repeat 1]
+    
+    // Instruction
+    XDL[0] = XDLC_GMON | XDLC_RPTL | XDLC_OVADR; 
+    XDL[1] = XDLC_ATT | XDLC_END; 
+
+    // Overlay location (Address) - XDL[2,3,4]
+    XDL[2] = 0x00;
     XDL[3] = 0x00;
     XDL[4] = 0x00;
-    XDL[5] = 0x00;
-    // Step
-    XDL[6] = 0x40; // 320 bytes
-    XDL[7] = 0x01;
-    // Width, palette, priority
-    XDL[8] = XDLC_ATT_OV_WIDTH_NORMAL | XDLC_ATT_OV_PALETTE_01; // NORMAL WIDTH, PALETTE 1 FOR OVERLAY
-    XDL[9] = XDLC_ATT_MAIN_PRIORITY_OVERLAY_ALL ^ XDLC_ATT_MAIN_PRIORITY_OVERLAY_PF1; // OVERLAY HAS PRIORITY OVER GTIA EXCEPT PF1
+
+    // Step - XDL[5,6]
+    XDL[5] = 0x40; // 0x40
+    XDL[6] = 0x01; // 0x01 -> 0x0140 = 320
+
+    // Attribute - XDL[7,8]
+    XDL[7] = XDLC_ATT_OV_WIDTH_NORMAL | XDLC_ATT_OV_PALETTE_01; 
+    XDL[8] = XDLC_ATT_MAIN_PRIORITY_OVERLAY_ALL ^ XDLC_ATT_MAIN_PRIORITY_OVERLAY_PF1; 
+
+    // Repeat - XDL[9]
+    XDL[9] = 239; // Repeat 239 lines
 
     // XDL disable
     VBXE->VIDEO_CONTROL = 0x00;

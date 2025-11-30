@@ -8,6 +8,11 @@
 #include "system.h"
 #include "files.h"
 #include "types.h"
+#include "graphics.h"
+
+#ifdef __ATARI__
+#include "vbxe.h"
+#endif
 
 #include <conio.h>
 #include <string.h>
@@ -64,6 +69,7 @@ char stream_image(char* args[])
 
     cprintf("Connecting to %s...\n\r", settings.url);
 
+    // Connect to the server
     if(!connect_service(settings.url))
     {
         show_error_and_close_network("Failed to connect\n\r");
@@ -74,8 +80,13 @@ char stream_image(char* args[])
     memset(buff, 0, 256);
     // Note: GRAPHICS_CONSOLE_EN is platform specific constant, might need abstraction if value differs
     // For now assuming settings.gfx_mode is compatible or common enough
-    sprintf((char*)buff, "gfx %d ", settings.gfx_mode & 0x7F); // Masking 0x80 (CONSOLE_EN often)
-    if(!send_data(settings.url, buff, 6))
+    #ifdef __ATARI__
+    if ((settings.gfx_mode & 0x1F) == 0x11 || (settings.gfx_mode & 0x1F) == 0x12) // GRAPHICS_20 or 21
+        sprintf((char*)buff, "gfx vbxe ");
+    else
+    #endif
+        sprintf((char*)buff, "gfx %d ", settings.gfx_mode & 0x7F); // Masking 0x80 (CONSOLE_EN often)
+    if(!send_data(settings.url, buff, strlen((char*)buff)))
     {
         show_error_and_close_network("Unable to write graphics mode\n\r");
         return 0x0;
@@ -136,8 +147,8 @@ char stream_image(char* args[])
         // Read the header
         if(!read_response_wait(settings.url, (unsigned char*)&image.header, sizeof(image.header)))
         {
-            show_error_and_close_network("Error reading header\n\r");
-            break;
+            err = 1;
+            goto quit;
         }
 
         // Read the block information, unused for now
@@ -145,61 +156,61 @@ char stream_image(char* args[])
         {
             if(!read_response_wait(settings.url, buff, sizeof(BlockHeaderV13)))
             {
-                show_error_and_close_network("Error reading block header\n\r");
-                break;
+                err = 2;
+                goto quit;
             }
         }
 
-        // Read the image data
-        // Call platform specific hook to handle the rest of the image/block loading
-        // We pass the URL so the platform code can continue reading from the socket
-        // logic for v2 >= 4 blocks is complex (loops, types), so it's better if platform handles it 
-        // OR we interpret blocks here and call hooks for DATA.
-        // But the block structure determines HOW MUCH to read.
-        
-        // Let's try to handle the block loop here if possible?
-        // The Atari code handles v2 < 4 differently than v2 >= 4.
-        // v2 >= 4 has block headers.
-        
         if(image.header.v2 >= 4)
         {
              uint8_t num_blocks;
              uint8_t b;
 
              if(!read_response_wait(settings.url, &num_blocks, sizeof(num_blocks))) {
-                 show_error_and_close_network("Error reading num blocks\n\r");
-                 break;
+                 err = 3;
+                 goto quit;
              }
-             
-             // Platform hook to prepare for blocks (e.g. clear screen)
-             // Maybe we need a prepare_image_render() hook?
-             // For now, we can't easily abstract the loop without reading block headers here.
-             // So let's read block headers here.
              
              for(b = 0; b < num_blocks; ++b)
              {
                  BlockHeaderV14 block_header;
-                 if(!read_response_wait(settings.url, (uint8_t*)&block_header, sizeof(block_header))) {
-                     show_error_and_close_network("Error reading block header\n\r");
+
+                 // Read Block Type FIRST (Server sends Type then Size)
+                 if(!read_response_wait(settings.url, &block_header.block_type, sizeof(block_header.block_type))) {
+                     err = 4;
+                     goto quit;
+                 }
+
+                 // Read Size (32-bit)
+                 if(!read_response_wait(settings.url, (uint8_t*)&block_header.size, sizeof(block_header.size))) {
+                     err = 5;
                      goto quit;
                  }
                  
                  if(block_header.block_type == ERROR_BLOCK)
                  {
                      if(!read_response_wait(settings.url, (uint8_t*)buff, (uint16_t)block_header.size)) {
-                         show_error_and_close_network("Error reading error message\n\r");
+                         err = 6;
                          goto quit;
                      }
-                     buff[block_header.size] = 0;
-                     cprintf("Error: %s\n", buff);
+                     buff[block_header.size] = 0; // Null terminate
+                     
+                     // Clear screen before showing error
+                     #ifdef __ATARI__
+                     if ((settings.gfx_mode & 0x1F) >= GRAPHICS_20)
+                         clear_vbxe();
+                     #endif
+                     clrscr();
+
+                     show_error_and_close_network((char*)buff);
+                     goto quit;
                  }
                  else
                  {
                      // Dispatch to platform to load the CONTENT of the block
-                     uint8_t res = platform_load_image_block((const char*)settings.url, (uint8_t)block_header.block_type, (uint32_t)block_header.size, (uint16_t)b);
-                     if(res != 0) // Error
+                     if(platform_load_image_block(settings.url, block_header.block_type, block_header.size, b) != 0)
                      {
-                         // Error handled in platform or just return
+                         err = 7;
                          goto quit;
                      }
                  }

@@ -3,6 +3,7 @@
 #include "graphics.h"
 #include "utility.h"
 #include "version.h"
+#include "vbxe.h"
 #include <atari.h>
 #include <conio.h>
 #include <stdbool.h>
@@ -16,7 +17,11 @@ void sys_init(void)
     atascii_to_internal(version, 40);
 
     // Initialize the frame buffer
+    // Initialize the frame buffer
     saveCurrentGraphicsState();
+
+    // Detect VBXE
+    detect_VBXE();
 
     // Initialize the settings.  Set defaults if no saved settings are found.
     get_settings();

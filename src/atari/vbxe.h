@@ -55,6 +55,7 @@ struct __vbxe {
 #define VBXE_D740 (*(struct __vbxe*)0xD740)
 #define XDL ((uint8_t*)0x8000)
 
+void detect_VBXE(void);
 void setup_VBXE(void);
 void clear_vbxe();
 
