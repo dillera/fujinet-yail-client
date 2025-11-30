@@ -47,14 +47,14 @@ void* ORG_SDLIST = 0;
 void* VDSLIST_STATE = 0;
 byte ORG_GPRIOR = 0x0;
 byte NMI_STATE = 0x0;
-byte ORG_COLOR1, ORG_COLOR2;
+byte ORG_COLOR1, ORG_COLOR2, ORG_COLOR4;
 DLDef dlDef;
 ImageData image = { {0, 0, 0, 0}, framebuffer };
 
 // DLI definitions
 void disable_9_dli(void);  // prototype for below
 
-// Enable Gfx 9
+// Enable Gfx 9/10/11
 #pragma optimize(push, off)
 void enable_9_dli(void) {
     __asm__("pha");
@@ -63,7 +63,7 @@ void enable_9_dli(void) {
     __asm__("txa");
     __asm__("pha");
     __asm__("sta %w", WSYNC);
-    POKE(PRIOR, ORG_GPRIOR | GFX_9);
+    POKE(PRIOR, OS.gprior); // Use the current GTIA mode (Gr.9/10/11)
     POKEW(VDSLST, (unsigned)disable_9_dli);
     __asm__("pla");
     __asm__("tax");
@@ -100,6 +100,7 @@ void saveCurrentGraphicsState(void)
     ORG_GPRIOR = OS.gprior;       // Save current priority states
     ORG_COLOR1 = OS.color1;
     ORG_COLOR2 = OS.color2;
+    ORG_COLOR4 = PEEK(COLOR4);
 }
 
 void restoreGraphicsState(void)
@@ -109,6 +110,7 @@ void restoreGraphicsState(void)
     OS.sdlst = ORG_SDLIST;
     OS.color1 = ORG_COLOR1;
     OS.color2 = ORG_COLOR2;
+    POKE(COLOR4, ORG_COLOR4);
     OS.gprior = ORG_GPRIOR;       // restore priority states
     OS.botscr = 24;
 }
@@ -176,8 +178,9 @@ void setGraphicsMode(const byte mode)
             OS.gprior = ORG_GPRIOR | GFX_10;   // Enable GTIA   
         break;
         case GRAPHICS_11:
-            OS.gprior = ORG_GPRIOR | GFX_11;   // Enable GTIA   
-        break;
+            OS.gprior = ORG_GPRIOR | GFX_11;   // Enable GTIA
+            POKE(COLOR4, 0x0E); // Set max luminance for Gr.11 (Shadow)
+            POKE(0xD01A, 0x0E); // Set max luminance for Gr.11 (Hardware COLBK)
         break;
         case GRAPHICS_20:
         case GRAPHICS_21:

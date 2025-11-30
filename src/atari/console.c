@@ -34,6 +34,7 @@ extern byte buff[];
 
 // Globals
 bool console_state = false;
+char last_search_term[64] = "empty";
 
 #ifdef CONSOLE_USE_LOCAL_BUFFER
 char CONSOLE_BUFF[GFX_0_MEM_LINE * CONSOLE_LINES];
@@ -236,13 +237,58 @@ char process_command(byte ntokens)
         }
     }
 
+    if(strncmp(tokens[0], "info", 4) == 0)
+    {
+        byte SAVED_MODE = settings.gfx_mode;
+        setGraphicsMode(GRAPHICS_0);
+        clrscr();
+        gotoxy(0,0);
+        
+        cputs("YAIL Info:\n\r");
+        cprintf("Mode: %d\n\r", settings.gfx_mode & 0x1F); // Mask out console bit
+        cprintf("URL: %s\n\r", settings.url);
+        cprintf("Term: %s\n\r", last_search_term);
+
+        cgetc();
+        setGraphicsMode(SAVED_MODE);
+    }
+
     if(0 == strncmp(tokens[0], "search", 3))
     {
+        // Store search term
+        memset(last_search_term, 0, sizeof(last_search_term));
+        if (tokens[1])
+        {
+            byte i;
+            for(i = 1; i < NUM_TOKENS && tokens[i]; ++i)
+            {
+                if (i > 1) strcat(last_search_term, " ");
+                strcat(last_search_term, tokens[i]);
+            }
+        }
+        else
+            strcpy(last_search_term, "empty");
+
         return stream_image(tokens);
     }
 
     if(0 == strncmp(tokens[0], "gen", 3))
     {
+        // Store gen term
+        memset(last_search_term, 0, sizeof(last_search_term));
+        strcpy(last_search_term, "gen: ");
+        if (tokens[1])
+        {
+            byte i;
+            for(i = 1; i < NUM_TOKENS && tokens[i]; ++i)
+            {
+                if (i > 1) strcat(last_search_term, " ");
+                strcat(last_search_term, tokens[i]);
+            }
+        }
+        else
+            strcat(last_search_term, "empty");
+
         return stream_image(tokens);
     }
 
