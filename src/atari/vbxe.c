@@ -32,7 +32,7 @@ void detect_VBXE(void)
     else
         VBXE = &VBXE_D640;
 
-    // cprintf("VBXE DETECTED\n\r");
+    cprintf("VBXE DETECTED\n\r");
 }
 
 void setup_VBXE(void)
