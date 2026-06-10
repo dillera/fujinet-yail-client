@@ -93,6 +93,33 @@ void disable_9_dli(void) {
 }
 #pragma optimize(pop)
 
+// Rewrite the bitmap mode lines of a display list in place.  The ANTIC E
+// (Graphics 15) and ANTIC F (Graphics 8) display lists are identical apart
+// from the mode nibble, so one DL serves both: walk the instructions,
+// retarget $0E/$0F mode lines, skip LMS/jump operand bytes, stop at JMP/JVB.
+static void retarget_dl_modes(byte* dl, byte antic_mode)
+{
+    while(1)
+    {
+        byte b = *dl;
+        byte low = b & 0x0F;
+
+        if(low == DL_JMP || low == DL_JVB)  // jump instructions end the walk
+            break;
+
+        if(low == 0x0E || low == 0x0F)
+        {
+            *dl = (b & 0xF0) | antic_mode;
+            if(b & 0x40)   // LMS: skip the screen memory address
+                dl += 2;
+        }
+        else if(low && (b & 0x40))  // LMS on some other mode (console text)
+            dl += 2;
+
+        ++dl;
+    }
+}
+
 void saveCurrentGraphicsState(void)
 {
     ORG_SDLIST = OS.sdlst;
@@ -135,14 +162,18 @@ void setGraphicsMode(const byte mode)
             OS.botscr = 24;
         break;
 
+        // makeDisplayList (called above) has already retargeted the shared
+        // display lists' mode bytes for ANTIC E vs F.
         case GRAPHICS_8:
         case GRAPHICS_9:
         case GRAPHICS_10:
         case GRAPHICS_11:
+        case GRAPHICS_15:
             OS.sdlst = &graphics_8_dl;
         break;
 
         case GRAPHICS_8_CONSOLE:
+        case GRAPHICS_15_CONSOLE:
             OS.sdlst = &graphics_8_console_dl;
         break;
         case GRAPHICS_9_CONSOLE:
@@ -163,7 +194,7 @@ void setGraphicsMode(const byte mode)
     }
 
     // Set graphics mode specifc things
-    switch(mode & 0x1F)
+    switch(mode & (byte)~(GRAPHICS_CONSOLE_EN | GRAPHICS_BUFFER_TWO))
     {
         case GRAPHICS_0:
         case GRAPHICS_8:
@@ -186,6 +217,18 @@ void setGraphicsMode(const byte mode)
             OS.gprior = CURRENT_PRIOR;
             OS.color4 = 0x08;                 // hue 0 lum 8: mode 11 luminance comes from COLBK
         break;
+        case GRAPHICS_15:
+            CURRENT_PRIOR = ORG_GPRIOR;       // No GTIA: ANTIC E 4-color bitmap
+            OS.gprior = CURRENT_PRIOR;
+            // 4-level gray ramp; pixel %00 = COLBK, %01-%11 = PF0-PF2.
+            // PF1 carries white and PF2 a dark gray so the mode 0 console
+            // (text lum from PF1, background from PF2) stays readable.
+            // Order must match the server's GR15_GRAYS quantization targets.
+            OS.color4 = 0x00;  // %00 black
+            OS.color0 = 0x06;  // %01 mid gray
+            OS.color1 = 0x0E;  // %10 white
+            OS.color2 = 0x03;  // %11 dark gray
+        break;
         case GRAPHICS_20:
         case GRAPHICS_21:
             // The DXL is set up in setup_VBXE.  Nothing to be done here.
@@ -206,10 +249,20 @@ void makeDisplayList(byte mode)
         case GRAPHICS_9:
         case GRAPHICS_10:
         case GRAPHICS_11:
+            retarget_dl_modes((byte*)&graphics_8_dl, DL_MAP320x1x1);
             dlDef.address = &graphics_8_dl;
+        break;
+        case GRAPHICS_15:
+            retarget_dl_modes((byte*)&graphics_8_dl, DL_MAP160x1x4);
+            dlDef.address = &graphics_8_dl;
+        break;
+        case GRAPHICS_15_CONSOLE:
+            retarget_dl_modes((byte*)&graphics_8_console_dl, DL_MAP160x1x4);
+            dlDef.address = &graphics_8_console_dl;
         break;
         case GRAPHICS_8_CONSOLE:
         //case GRAPHICS_8_CONSOLE | GRAPHICS_BUFFER_TWO:  // Switch to front buffer for console
+            retarget_dl_modes((byte*)&graphics_8_console_dl, DL_MAP320x1x1);
             dlDef.address = &graphics_8_console_dl;
         break;
         case GRAPHICS_9_CONSOLE:
@@ -238,6 +291,7 @@ void show_console()
         case GRAPHICS_0:
             break;
         case GRAPHICS_8:
+        case GRAPHICS_15:
         {
             settings.gfx_mode |= GRAPHICS_CONSOLE_EN;
 
@@ -280,6 +334,7 @@ void hide_console()
         case GRAPHICS_9_CONSOLE:
         case GRAPHICS_10_CONSOLE:
         case GRAPHICS_11_CONSOLE:
+        case GRAPHICS_15_CONSOLE:
         {
             settings.gfx_mode &= (byte)~GRAPHICS_CONSOLE_EN;
 
@@ -309,6 +364,7 @@ void clearFrameBuffer(void)
         case GRAPHICS_9_CONSOLE:
         case GRAPHICS_10_CONSOLE:
         case GRAPHICS_11_CONSOLE:
+        case GRAPHICS_15_CONSOLE:
         {
             memset(framebuffer, 0, FRAMEBUFFER_SIZE);
         }
@@ -329,6 +385,8 @@ uint8_t graphics_mode_to_wire(uint8_t mode)
     {
         case GRAPHICS_9:
             return 4;
+        case GRAPHICS_15:
+            return 6;
         case GRAPHICS_10:  // no 9-color wire format yet; show the 16-hue data
         case GRAPHICS_11:
             return 8;
@@ -356,6 +414,10 @@ char* graphics_mode_to_string(uint8_t mode)
             return "Graphics 10 GTIA 9 colors";
         case GRAPHICS_11:
             return "Graphics 11 GTIA 16 hues";
+        case GRAPHICS_15:
+            return "Graphics 15 160x220 4 shades";
+        case GRAPHICS_15_CONSOLE:
+            return "Graphics 15 + console";
         case GRAPHICS_8_CONSOLE:
             return "Graphics 8 + console";
         case GRAPHICS_9_CONSOLE:
