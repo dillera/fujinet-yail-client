@@ -123,6 +123,7 @@ char process_command(byte ntokens)
         "save - [filename] Save image to YAI file\n\r"
         #else
         "search - [arg0...argN] Find images\n\r"
+        "random - search, gfx hops every 5\n\r"
         "generate - [prompt] AI images\n\r"
         "video  - Stream video\n\r"
         #endif
@@ -256,6 +257,11 @@ char process_command(byte ntokens)
     }
 
     if(0 == strncmp(tokens[0], "search", 3))
+    {
+        return stream_image(tokens);
+    }
+
+    if(0 == strncmp(tokens[0], "random", 3))
     {
         return stream_image(tokens);
     }

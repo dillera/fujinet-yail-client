@@ -27,6 +27,10 @@ extern struct __vbxe* VBXE;
 // packets carry a 9-byte GTIA register palette instead of VBXE data.
 #define WIRE_GRAPHICS_10 10
 
+// 'random' mode: every Nth image the slideshow hops to a random gfx mode.
+#define RANDOM_SWITCH_COUNT 5
+#define POKEY_RANDOM (*(volatile uint8_t*)0xD20A)
+
 // The second (back) framebuffer starts one FRAMEBUFFER_SIZE above the
 // first; reads are split so no network_read crosses a 4K boundary.
 #define BACK_BUFFER_OFFSET 0x2280
@@ -274,6 +278,22 @@ char stream_image(char* args[])
 {
     ushort i = 0;
     char input;
+    byte random_mode = (0 == strncmp(args[0], "random", 3));
+    byte image_count = 0;
+    byte rnd_modes[6];
+    byte rnd_count = 0;
+    byte new_mode;
+
+    if(random_mode)
+    {
+        rnd_modes[rnd_count++] = GRAPHICS_8;
+        rnd_modes[rnd_count++] = GRAPHICS_9;
+        rnd_modes[rnd_count++] = GRAPHICS_10;
+        rnd_modes[rnd_count++] = GRAPHICS_11;
+        rnd_modes[rnd_count++] = GRAPHICS_15;
+        if(VBXE)
+            rnd_modes[rnd_count++] = GRAPHICS_20;
+    }
 
     OS.soundr = 0; // Turn off SIO beeping sound
 
@@ -325,10 +345,14 @@ char stream_image(char* args[])
             strcat(buff, args[i]);
         }
     }
-    else if((0 == strncmp(args[0], "search", 3) || (0 == strncmp(args[0], "gen", 3))) && (0 != args[1]))
+    else if((0 == strncmp(args[0], "search", 3) || (0 == strncmp(args[0], "gen", 3))
+             || random_mode) && (0 != args[1]))
     {
         // Build up the search string
-        strncpy(buff, args[0], 16); // Add the command
+        if(random_mode)
+            strncpy(buff, "search", 16); // random mode is a search with rotating gfx
+        else
+            strncpy(buff, args[0], 16); // Add the command
 
         // 'gen' sends only the prompt; the server chooses the model.
         // Append the terms or phrase surround with quotes
@@ -457,7 +481,22 @@ char stream_image(char* args[])
                 goto quit;
         }
 
-        if(FN_ERR_OK != network_write(settings.url, (uint8_t*)"next", 4))
+        if(random_mode && ++image_count >= RANDOM_SWITCH_COUNT)
+        {
+            // Hop to a random graphics mode and ask for the next image in it.
+            image_count = 0;
+            new_mode = rnd_modes[POKEY_RANDOM % rnd_count];
+            settings.gfx_mode = new_mode;
+            setGraphicsMode(new_mode);
+            memset(buff, 0, 32);
+            sprintf((char*)buff, "gfx %d next", graphics_mode_to_wire(new_mode));
+            if(FN_ERR_OK != network_write(settings.url, buff, strlen((char*)buff)))
+            {
+                show_error("Unable to write request\n\r");
+                break;
+            }
+        }
+        else if(FN_ERR_OK != network_write(settings.url, (uint8_t*)"next", 4))
         {
             show_error("Unable to write request\n\r");
             break;
