@@ -252,11 +252,11 @@ char stream_image(char* args[])
     }
 
     // Send which graphics mode we are in.  The console flag is cleared from
-    // the saved mode; the wire value also drops the double-buffer flag since
-    // the server only understands the base modes (2, 4, VBXE).
+    // the saved mode; graphics_mode_to_wire maps the internal bitmask defines
+    // to the protocol values (2, 4, 8, 16) and drops the buffer/console flags.
     settings.gfx_mode &= ~GRAPHICS_CONSOLE_EN;
     memset(buff, 0, 256);
-    sprintf((char*)buff, "gfx %d ", settings.gfx_mode & ~GRAPHICS_BUFFER_TWO);
+    sprintf((char*)buff, "gfx %d ", graphics_mode_to_wire(settings.gfx_mode));
     if(FN_ERR_OK != network_write(settings.url, buff, strlen((char*)buff)))
     {
         show_error_and_close_network("Unable to write graphics mode\n\r");

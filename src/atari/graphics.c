@@ -47,7 +47,8 @@ void* ORG_SDLIST = 0;
 void* VDSLIST_STATE = 0;
 byte ORG_GPRIOR = 0x0;
 byte NMI_STATE = 0x0;
-byte ORG_COLOR1, ORG_COLOR2;
+byte ORG_COLOR1, ORG_COLOR2, ORG_COLOR4;
+byte CURRENT_PRIOR = 0x0;  // PRIOR value for the active mode, used by the console DLI
 DLDef dlDef;
 ImageData image = { {0, 0, 0, 0}, framebuffer };
 
@@ -63,7 +64,7 @@ void enable_9_dli(void) {
     __asm__("txa");
     __asm__("pha");
     __asm__("sta %w", WSYNC);
-    POKE(PRIOR, ORG_GPRIOR | GFX_9);
+    POKE(PRIOR, CURRENT_PRIOR);
     POKEW(VDSLST, (unsigned)disable_9_dli);
     __asm__("pla");
     __asm__("tax");
@@ -100,6 +101,7 @@ void saveCurrentGraphicsState(void)
     ORG_GPRIOR = OS.gprior;       // Save current priority states
     ORG_COLOR1 = OS.color1;
     ORG_COLOR2 = OS.color2;
+    ORG_COLOR4 = OS.color4;
 }
 
 void restoreGraphicsState(void)
@@ -109,6 +111,7 @@ void restoreGraphicsState(void)
     OS.sdlst = ORG_SDLIST;
     OS.color1 = ORG_COLOR1;
     OS.color2 = ORG_COLOR2;
+    OS.color4 = ORG_COLOR4;
     OS.gprior = ORG_GPRIOR;       // restore priority states
     OS.botscr = 24;
 }
@@ -164,16 +167,24 @@ void setGraphicsMode(const byte mode)
     {
         case GRAPHICS_0:
         case GRAPHICS_8:
-            OS.gprior = ORG_GPRIOR;           // Return original state of GTIA
+            CURRENT_PRIOR = ORG_GPRIOR;       // Return original state of GTIA
+            OS.gprior = CURRENT_PRIOR;
+            OS.color4 = ORG_COLOR4;
         break;
         case GRAPHICS_9:
-            OS.gprior = ORG_GPRIOR | GFX_9;   // Enable GTIA   
+            CURRENT_PRIOR = ORG_GPRIOR | GFX_9;   // Enable GTIA
+            OS.gprior = CURRENT_PRIOR;
+            OS.color4 = 0;                    // COLBK black: pixels are gray luminances
         break;
         case GRAPHICS_10:
-            OS.gprior = ORG_GPRIOR | GFX_10;   // Enable GTIA   
+            CURRENT_PRIOR = ORG_GPRIOR | GFX_10;   // Enable GTIA
+            OS.gprior = CURRENT_PRIOR;
+            OS.color4 = 0;
         break;
         case GRAPHICS_11:
-            OS.gprior = ORG_GPRIOR | GFX_11;   // Enable GTIA   
+            CURRENT_PRIOR = ORG_GPRIOR | GFX_11;   // Enable GTIA
+            OS.gprior = CURRENT_PRIOR;
+            OS.color4 = 0x08;                 // hue 0 lum 8: mode 11 luminance comes from COLBK
         break;
         case GRAPHICS_20:
         case GRAPHICS_21:
@@ -306,6 +317,26 @@ void clearFrameBuffer(void)
         case GRAPHICS_21:
             // Not sure what to do here yet.
         break;
+    }
+}
+
+// Map internal mode defines to the wire values in the server's PROTOCOL.md.
+// The internal values are bitmasks (and persisted in appkeys) so they can't
+// be sent raw: GRAPHICS_11 (0x10) would collide with the VBXE wire value 16.
+uint8_t graphics_mode_to_wire(uint8_t mode)
+{
+    switch(mode & ~(GRAPHICS_CONSOLE_EN | GRAPHICS_BUFFER_TWO))
+    {
+        case GRAPHICS_9:
+            return 4;
+        case GRAPHICS_10:  // no 9-color wire format yet; show the 16-hue data
+        case GRAPHICS_11:
+            return 8;
+        case GRAPHICS_20:
+        case GRAPHICS_21:
+            return 16;
+        default:
+            return 2;
     }
 }
 

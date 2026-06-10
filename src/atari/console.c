@@ -108,10 +108,11 @@ char process_command(byte ntokens)
         cputs(
         "quit - Exit this utility\n\r"
         "cls  - Clear the image display\n\r"
-        "gfx  - [0,8,9,20] Set the graphics mode\n\r"
+        "gfx  - [0,8,9,11,20] Set graphics mode\n\r"
         "       0 : Graphics 0 text\n\r"
         "       8 : Graphics 8 320x220 mono\n\r"
         "       9 : Graphics 9 GTIA 16 shades\n\r"
+        "       11: Graphics 11 GTIA 16 hues\n\r"
         "       20: VBXE 320x240 256 colors\n\r"
         "set  - Saved settings\n\r"
         "       server [url] (N:TCP://blah.duh/)\n\r"

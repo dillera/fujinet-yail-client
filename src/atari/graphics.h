@@ -112,5 +112,6 @@ void clearFrameBuffer(void);
 void show_console(void);
 void hide_console(void);
 char* graphics_mode_to_string(uint8_t mode);
+uint8_t graphics_mode_to_wire(uint8_t mode);
 
 #endif // GRAPHICS_H
