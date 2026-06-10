@@ -175,7 +175,6 @@ void setGraphicsMode(const byte mode)
         case GRAPHICS_11:
             OS.gprior = ORG_GPRIOR | GFX_11;   // Enable GTIA   
         break;
-        break;
         case GRAPHICS_20:
         case GRAPHICS_21:
             // The DXL is set up in setup_VBXE.  Nothing to be done here.

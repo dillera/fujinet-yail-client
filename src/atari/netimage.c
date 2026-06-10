@@ -43,8 +43,10 @@ char check_keypress(ushort delay)
                 return(0x0);
             }
             else  // a key was pressed so let's assume it's a command and process it by quitting and returning the key
+            {
                 show_console();
                 return input;
+            }
         }
 
     return 0x0;
@@ -52,27 +54,25 @@ char check_keypress(ushort delay)
 
 byte load_front_buffer()
 {
-    //byte status = FN_ERR_UNKNOWN;
-    uint16_t num_bytes;
-    
+    // network_read returns int16_t; a negative value signals an error.
+    int16_t num_bytes;
+
     if(image.header.v2 < 4)
     {
         #define BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE 4080
         #define BUFFER_ONE_BLOCK_THREE_SIZE 640
 
-        uint16_t num_bytes;
-
         num_bytes = network_read(settings.url, (uint8_t*)image.data, BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE);
         if(0 > num_bytes)
-            goto quit;
+            goto fail;
 
         num_bytes = network_read(settings.url, (uint8_t*)image.data+0x1000, BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE);
         if(0 > num_bytes)
-            goto quit;
+            goto fail;
 
         num_bytes = network_read(settings.url, (uint8_t*)image.data+0x2000, BUFFER_ONE_BLOCK_THREE_SIZE);
         if(0 > num_bytes)
-            goto quit;
+            goto fail;
     }
     else // VBXE
     {
@@ -83,7 +83,7 @@ byte load_front_buffer()
         BlockHeaderV14 block_header;
         uint16_t j;
         uint8_t i, num_blocks;
-        
+
         clrscr();
 
         // Read the number of blocks
@@ -91,11 +91,12 @@ byte load_front_buffer()
         if(0 > num_bytes)
         {
             show_error_and_close_network("Error reading num blocks\n\r");
-            return num_bytes;
+            return FN_ERR_IO_ERROR;
         }
 
         //cprintf("Number of blocks: %d\n\r", num_blocks);
-        VBXE->VIDEO_CONTROL = 0x03;
+        if(VBXE)
+            VBXE->VIDEO_CONTROL = 0x03;
 
         // Iterate, reading blocks
         for(i = 0; i < num_blocks; ++i)
@@ -114,6 +115,12 @@ byte load_front_buffer()
             switch(block_header.block_type)
             {
                 case IMAGE_BLOCK:  // Image data
+                    if(NULL == VBXE)
+                    {
+                        show_error_and_close_network("VBXE data but no VBXE hardware\n\r");
+                        return FN_ERR_UNKNOWN;
+                    }
+
                     // Clear image
                     clear_vbxe();
 
@@ -130,12 +137,15 @@ byte load_front_buffer()
                         VBXE->MEM_BANK_SEL = 128 + j;  // MOVE WINDOW STARTING $0000
                         num_bytes = network_read(settings.url, XDL, byte_to_read);
                         if(0 > num_bytes)
-                            return num_bytes;
+                            return FN_ERR_IO_ERROR;
                     }
                     break;
                 case PALETTE_BLOCK:  // Palette, reuse the buff since it's already allocated
-                    // Disable VBXE render
-                    //VBXE->VIDEO_CONTROL = 0x00;
+                    if(NULL == VBXE)
+                    {
+                        show_error_and_close_network("VBXE data but no VBXE hardware\n\r");
+                        return FN_ERR_UNKNOWN;
+                    }
 
                     VBXE->CSEL = 0x00;
                     VBXE->PSEL = 0x01;
@@ -167,9 +177,9 @@ byte load_front_buffer()
                     if(0 > num_bytes)
                     {
                         show_error_and_close_network("Error reading error message\n");
-                        break;
+                        return FN_ERR_IO_ERROR;
                     }
-                    buff[block_header.size] = 0x0;
+                    buff[(uint16_t)block_header.size] = 0x0;
                     cprintf("Error: %s\n", buff);
                     break;
                 case XDL_BLOCK:  // XDL
@@ -180,8 +190,10 @@ byte load_front_buffer()
         }
     }
 
-quit:
-    return 0;
+    return FN_ERR_OK;
+
+fail:
+    return FN_ERR_IO_ERROR;
 }
 
 byte load_back_buffer()
@@ -190,22 +202,25 @@ byte load_back_buffer()
     #define BUFFER_TWO_BLOCK_TWO_SIZE 4080
     #define BUFFER_TWO_BLOCK_THREE_SIZE 1280
 
-    uint16_t num_bytes;
+    // network_read returns int16_t; a negative value signals an error.
+    int16_t num_bytes;
 
     num_bytes = network_read(settings.url, (uint8_t*)0x8280, BUFFER_TWO_BLOCK_ONE_SIZE);
     if(0 > num_bytes)
-        goto quit;
+        goto fail;
 
     num_bytes = network_read(settings.url, (uint8_t*)0x9000, BUFFER_TWO_BLOCK_TWO_SIZE);
     if(0 > num_bytes)
-        goto quit;
+        goto fail;
 
     num_bytes = network_read(settings.url, (uint8_t*)0xA000, BUFFER_TWO_BLOCK_THREE_SIZE);
     if(0 > num_bytes)
-        goto quit;
+        goto fail;
 
-quit:
-    return 0;
+    return FN_ERR_OK;
+
+fail:
+    return FN_ERR_IO_ERROR;
 }
 
 char stream_image(char* args[])
@@ -236,10 +251,13 @@ char stream_image(char* args[])
         return 0x0;
     }
 
-    // Send which graphics mode we are in
+    // Send which graphics mode we are in.  The console flag is cleared from
+    // the saved mode; the wire value also drops the double-buffer flag since
+    // the server only understands the base modes (2, 4, VBXE).
+    settings.gfx_mode &= ~GRAPHICS_CONSOLE_EN;
     memset(buff, 0, 256);
-    sprintf((char*)buff, "gfx %d ", settings.gfx_mode &= ~GRAPHICS_CONSOLE_EN);
-    if(FN_ERR_OK != network_write(settings.url, buff, 6))
+    sprintf((char*)buff, "gfx %d ", settings.gfx_mode & ~GRAPHICS_BUFFER_TWO);
+    if(FN_ERR_OK != network_write(settings.url, buff, strlen((char*)buff)))
     {
         show_error_and_close_network("Unable to write graphics mode\n\r");
         return 0x0;
@@ -306,7 +324,8 @@ char stream_image(char* args[])
 
     while(true)
     {
-        uint16_t num_bytes;
+        // network_read returns int16_t; a negative value signals an error.
+        int16_t num_bytes;
 
         // Read the header
         num_bytes = network_read(settings.url, (unsigned char*)&image.header, sizeof(image.header));

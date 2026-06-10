@@ -28,13 +28,13 @@ bool done = false;
 
 void help()
 {
-    cputs("Usage: yail [OPTIONS]\r\n");
+    cputs("Usage: yail [OPTIONS]\r\n"
           "  -h this message\r\n"
     #ifdef YAIL_BUILD_FILE_LOADER
           "  -l <filename> load image file\r\n"
     #endif
           "  -u <url> use this server address\r\n"
-          "  -s <tokens> search terms\r\n";
+          "  -s <tokens> search terms\r\n");
 }
 
 void process_command_line(char* argv[])

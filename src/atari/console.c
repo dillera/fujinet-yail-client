@@ -395,8 +395,6 @@ void start_console(char first_char)
                 if(x > 0)
                 {
                     --x;
-                    if (x < 0)
-                        x = 0;
                     CONSOLE_BUFF[x] = 0x0;
                     gotoxy(x%40, x/40);
                 }
