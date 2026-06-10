@@ -108,10 +108,11 @@ char process_command(byte ntokens)
         cputs(
         "quit - Exit this utility\n\r"
         "cls  - Clear the image display\n\r"
-        "gfx  - [0,8,9,11,15,20] graphics mode\n\r"
+        "gfx  - [0,8-11,15,20] graphics mode\n\r"
         "       0 : Graphics 0 text\n\r"
         "       8 : Graphics 8 320x220 mono\n\r"
         "       9 : Graphics 9 GTIA 16 shades\n\r"
+        "       10: Graphics 10 GTIA 9 colors\n\r"
         "       11: Graphics 11 GTIA 16 hues\n\r"
         "       15: Graphics 15 160x220 4 shd\n\r"
         "       20: VBXE 320x240 256 colors\n\r"

@@ -387,9 +387,10 @@ uint8_t graphics_mode_to_wire(uint8_t mode)
             return 4;
         case GRAPHICS_15:
             return 6;
-        case GRAPHICS_10:  // no 9-color wire format yet; show the 16-hue data
         case GRAPHICS_11:
             return 8;
+        case GRAPHICS_10:
+            return 10;
         case GRAPHICS_20:
         case GRAPHICS_21:
             return 16;

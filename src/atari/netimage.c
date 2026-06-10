@@ -18,9 +18,18 @@
 
 //
 extern byte buff[];
+extern byte framebuffer[];
 extern ImageData image;
 extern Settings settings;
 extern struct __vbxe* VBXE;
+
+// Wire value for Graphics 10 in packet headers (see PROTOCOL.md); its v1.4
+// packets carry a 9-byte GTIA register palette instead of VBXE data.
+#define WIRE_GRAPHICS_10 10
+
+// The second (back) framebuffer starts one FRAMEBUFFER_SIZE above the
+// first; reads are split so no network_read crosses a 4K boundary.
+#define BACK_BUFFER_OFFSET 0x2280
 
 void show_error_and_close_network(const char* message)
 {
@@ -84,7 +93,8 @@ byte load_front_buffer()
         uint16_t j;
         uint8_t i, num_blocks;
 
-        clrscr();
+        if(WIRE_GRAPHICS_10 != image.header.gfx)
+            clrscr();  // VBXE loads show progress on the ANTIC text screen
 
         // Read the number of blocks
         num_bytes = network_read(settings.url, &num_blocks, sizeof(num_blocks));
@@ -115,6 +125,21 @@ byte load_front_buffer()
             switch(block_header.block_type)
             {
                 case IMAGE_BLOCK:  // Image data
+                    if(WIRE_GRAPHICS_10 == image.header.gfx)
+                    {
+                        // GTIA framebuffer: same 4K-boundary chunking as v1.1
+                        num_bytes = network_read(settings.url, (uint8_t*)image.data, 4080);
+                        if(0 > num_bytes)
+                            return FN_ERR_IO_ERROR;
+                        num_bytes = network_read(settings.url, (uint8_t*)image.data+0x1000, 4080);
+                        if(0 > num_bytes)
+                            return FN_ERR_IO_ERROR;
+                        num_bytes = network_read(settings.url, (uint8_t*)image.data+0x2000, 640);
+                        if(0 > num_bytes)
+                            return FN_ERR_IO_ERROR;
+                        break;
+                    }
+
                     if(NULL == VBXE)
                     {
                         show_error_and_close_network("VBXE data but no VBXE hardware\n\r");
@@ -141,6 +166,28 @@ byte load_front_buffer()
                     }
                     break;
                 case PALETTE_BLOCK:  // Palette, reuse the buff since it's already allocated
+                    if(WIRE_GRAPHICS_10 == image.header.gfx)
+                    {
+                        // 9 Atari color bytes for the GTIA mode 10 sources,
+                        // in register order P0-P3, PF0-PF3, BAK.
+                        num_bytes = network_read(settings.url, (uint8_t*)buff, (uint16_t)block_header.size);
+                        if(0 > num_bytes)
+                        {
+                            show_error_and_close_network("Error reading palette\n");
+                            return FN_ERR_IO_ERROR;
+                        }
+                        OS.pcolr0 = buff[0];
+                        OS.pcolr1 = buff[1];
+                        OS.pcolr2 = buff[2];
+                        OS.pcolr3 = buff[3];
+                        OS.color0 = buff[4];
+                        OS.color1 = buff[5];
+                        OS.color2 = buff[6];
+                        OS.color3 = buff[7];
+                        OS.color4 = buff[8];
+                        break;
+                    }
+
                     if(NULL == VBXE)
                     {
                         show_error_and_close_network("VBXE data but no VBXE hardware\n\r");
@@ -205,15 +252,15 @@ byte load_back_buffer()
     // network_read returns int16_t; a negative value signals an error.
     int16_t num_bytes;
 
-    num_bytes = network_read(settings.url, (uint8_t*)0x8280, BUFFER_TWO_BLOCK_ONE_SIZE);
+    num_bytes = network_read(settings.url, framebuffer + BACK_BUFFER_OFFSET, BUFFER_TWO_BLOCK_ONE_SIZE);
     if(0 > num_bytes)
         goto fail;
 
-    num_bytes = network_read(settings.url, (uint8_t*)0x9000, BUFFER_TWO_BLOCK_TWO_SIZE);
+    num_bytes = network_read(settings.url, framebuffer + 0x3000, BUFFER_TWO_BLOCK_TWO_SIZE);
     if(0 > num_bytes)
         goto fail;
 
-    num_bytes = network_read(settings.url, (uint8_t*)0xA000, BUFFER_TWO_BLOCK_THREE_SIZE);
+    num_bytes = network_read(settings.url, framebuffer + 0x4000, BUFFER_TWO_BLOCK_THREE_SIZE);
     if(0 > num_bytes)
         goto fail;
 
@@ -372,7 +419,7 @@ char stream_image(char* args[])
                     break;
                 }
                 #else
-                num_bytes = network_read(settings.url, (uint8_t*)0x8280, 8800);
+                num_bytes = network_read(settings.url, framebuffer + BACK_BUFFER_OFFSET, 8800);
                 if(0 > num_bytes)
                 {
                     show_error_and_close_network("Error reading\n\r");
@@ -390,9 +437,9 @@ char stream_image(char* args[])
             #else
             #define BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE 4080
             #define BUFFER_ONE_BLOCK_THREE_SIZE 640
-            memcpy((void*)image.data, (void*)0x8280, BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE);
-            memcpy((void*)(image.data+0x1000), (void*)(0x8280+BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE), BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE);
-            memcpy((void*)(image.data+0x2000), (void*)(0x8280+BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE+BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE), BUFFER_ONE_BLOCK_THREE_SIZE);
+            memcpy((void*)image.data, (void*)(framebuffer + BACK_BUFFER_OFFSET), BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE);
+            memcpy((void*)(image.data+0x1000), (void*)(framebuffer + BACK_BUFFER_OFFSET + BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE), BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE);
+            memcpy((void*)(image.data+0x2000), (void*)(framebuffer + BACK_BUFFER_OFFSET + 2*BUFFER_ONE_BLOCK_ONE_AND_TWO_SIZE), BUFFER_ONE_BLOCK_THREE_SIZE);
             #endif
 
             input = check_keypress(2);
