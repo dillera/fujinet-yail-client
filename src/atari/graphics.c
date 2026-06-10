@@ -311,30 +311,32 @@ void clearFrameBuffer(void)
 
 char* graphics_mode_to_string(uint8_t mode)
 {
+    // OS Graphics numbers; 8-11 all use ANTIC mode F lines,
+    // 9-11 reinterpreted by GTIA via PRIOR[7:6].
     switch(mode)
     {
         case GRAPHICS_0:
-            return "ANTIC 0";
+            return "Graphics 0 text";
         case GRAPHICS_8:
-            return "ANTIC 8";
+            return "Graphics 8 320x220 mono";
         case GRAPHICS_9:
-            return "ANTIC 9";
+            return "Graphics 9 GTIA 16 shades";
         case GRAPHICS_10:
-            return "ANTIC 10";
+            return "Graphics 10 GTIA 9 colors";
         case GRAPHICS_11:
-            return "ANTIC 11";
+            return "Graphics 11 GTIA 16 hues";
         case GRAPHICS_8_CONSOLE:
-            return "ANTIC 8 and 0";
+            return "Graphics 8 + console";
         case GRAPHICS_9_CONSOLE:
-            return "ANTIC 9 and 0";
+            return "Graphics 9 + console";
         case GRAPHICS_10_CONSOLE:
-            return "ANTIC 10 and 0";
+            return "Graphics 10 + console";
         case GRAPHICS_11_CONSOLE:
-            return "ANTIC 11 and 0";
+            return "Graphics 11 + console";
         case GRAPHICS_20:
-            return "VBXE 320x240@256";
+            return "VBXE 320x240 256 colors";
         case GRAPHICS_21:
-            return "VBXE 640x480@16";
+            return "VBXE 640x240 16 colors";
         default:
             return "Unknown";
     }

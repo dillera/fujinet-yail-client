@@ -15,7 +15,12 @@
 #define FN_AIMODEL_KEY_ID 0x03
 
 #define DEFAULT_GFX_MODE GRAPHICS_8
-#define DEFAULT_URL "N:TCP://fujinet.org:5556/"
+// Build-time override for local testing:
+//   CFLAGS='-DYAIL_SERVER_URL=\"N:TCP://localhost:5556/\"' make TARGETS=atari all
+#ifndef YAIL_SERVER_URL
+#define YAIL_SERVER_URL "N:TCP://fujinet.org:5556/"
+#endif
+#define DEFAULT_URL YAIL_SERVER_URL
 #define DEFAULT_AI_MODEL_NAME "dall-e-3"
 
 // Globals

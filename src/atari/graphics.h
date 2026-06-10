@@ -15,7 +15,7 @@
 #define GRAPHICS_9 0x04
 #define GRAPHICS_10 0x08
 #define GRAPHICS_11 0x10
-// VBXE 320x240x256
+// VBXE modes: 20 = 320x240 256-color, 21 = 640x240 16-color (HR)
 #define GRAPHICS_20 0x11
 #define GRAPHICS_21 0x12
 #define GRAPHICS_BUFFER_TWO 0x20
