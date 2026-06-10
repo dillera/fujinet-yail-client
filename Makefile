@@ -1,6 +1,6 @@
 # Yail Atari Client Take 2
 
-TARGETS = atari
+TARGETS = atari apple2 apple2enh c64
 PROGRAM := yail
 
 # Set this to the version of FN-LIB you wish to use in this project:
