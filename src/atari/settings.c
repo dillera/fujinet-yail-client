@@ -12,7 +12,6 @@
 #define FN_APP_ID 0x01
 #define FN_URL_KEY_ID 0x01
 #define FN_GFX_KEY_ID 0x02
-#define FN_AIMODEL_KEY_ID 0x03
 
 #define DEFAULT_GFX_MODE GRAPHICS_8
 // Build-time override for local testing:
@@ -21,13 +20,11 @@
 #define YAIL_SERVER_URL "N:TCP://fujinet.org:5556/"
 #endif
 #define DEFAULT_URL YAIL_SERVER_URL
-#define DEFAULT_AI_MODEL_NAME "dall-e-3"
 
 // Globals
 Settings settings = {
     DEFAULT_GFX_MODE,
-    DEFAULT_URL,
-    DEFAULT_AI_MODEL_NAME
+    DEFAULT_URL
 };
 
 // Externals
@@ -67,9 +64,6 @@ uint8_t get_settings()
     count = strlen(DEFAULT_URL) + 1;
     read_or_create_appkey((uint8_t)FN_URL_KEY_ID, count, (uint8_t *)&(settings.url[0]));
 
-    count = strlen(DEFAULT_AI_MODEL_NAME) + 1;
-    read_or_create_appkey((uint8_t)FN_AIMODEL_KEY_ID, count, (uint8_t *)&(settings.ai_model_name[0]));
-
     // Add more settings below...
 
     // Apply the graphics mode setting.  Really should be done outside of here.
@@ -97,23 +91,15 @@ uint8_t put_settings(byte select)
             fuji_set_appkey_details(FN_CREATOR_ID, (uint8_t)FN_APP_ID, MAX_APPKEY_LEN);
             return fuji_write_appkey(FN_GFX_KEY_ID, 1, (uint8_t *)&settings.gfx_mode);
         }
-        case SETTINGS_AI_MODEL:
-        {
-            uint16_t len = strlen(settings.ai_model_name) + 1;
-
-            fuji_set_appkey_details(FN_CREATOR_ID, (uint8_t)FN_APP_ID, MAX_APPKEY_LEN);
-            return fuji_write_appkey(FN_AIMODEL_KEY_ID, len, (uint8_t *)settings.ai_model_name);
-        }
         default:
             return 0;
     }
 }
 
-void print_settings(uint8_t mode, char* url, char* ai_model)
+void print_settings(uint8_t mode, char* url)
 {
     // Print the settings
     cputs("Settings:\n\r");
     cprintf("GFX: %02X %s\n\r", mode, graphics_mode_to_string(mode));
     cprintf("URL: %s\n\r", url);
-    cprintf("MODEL: %s\n\r", ai_model);
 }

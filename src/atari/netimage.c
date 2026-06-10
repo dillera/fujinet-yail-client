@@ -330,13 +330,7 @@ char stream_image(char* args[])
         // Build up the search string
         strncpy(buff, args[0], 16); // Add the command
 
-        // Generate has a special case.  It sends the model name along with the command.  Here we append.
-        if(0 == strncmp(args[0], "gen", 3))
-        {
-            strcat((char*)buff, " ");
-            strcat((char*)buff, settings.ai_model_name);
-        }
-
+        // 'gen' sends only the prompt; the server chooses the model.
         // Append the terms or phrase surround with quotes
         for(i = 1; i < NUM_TOKENS; ++i)
         {

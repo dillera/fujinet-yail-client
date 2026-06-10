@@ -118,7 +118,6 @@ char process_command(byte ntokens)
         "       20: VBXE 320x240 256 colors\n\r"
         "set  - Saved settings\n\r"
         "       server [url] (N:TCP://blah.duh/)\n\r"
-        "       model [ai model name] (dall-e-3)\n\r"
         #ifdef YAIL_BUILD_FILE_LOADER
         "load - [filename] Load and display file\n\r"
         "save - [filename] Save image to YAI file\n\r"
@@ -230,7 +229,7 @@ char process_command(byte ntokens)
             //show_error_pause("ERROR: Must specify a setting and value");
             setGraphicsMode(GRAPHICS_0);
 
-            print_settings(SAVED_MODE, settings.url, settings.ai_model_name);
+            print_settings(SAVED_MODE, settings.url);
 
             cgetc();                                  // Wait
             setGraphicsMode(SAVED_MODE);              // Restore the graphics mode
@@ -252,11 +251,6 @@ char process_command(byte ntokens)
                     // The server will use this setting to randomize the graphics per image.
                     settings.gfx_mode = '*';
                 }
-            }
-            else if(strncmp(tokens[1], "model", 5) == 0)
-            {
-                strncpy(settings.ai_model_name, tokens[2], AI_MODEL_NAME_SIZE);
-                put_settings(SETTINGS_AI_MODEL);  // save the model name on the FN
             }
         }
     }
