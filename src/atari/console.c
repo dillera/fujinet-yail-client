@@ -108,10 +108,14 @@ char process_command(byte ntokens)
         cputs(
         "quit - Exit this utility\n\r"
         "cls  - Clear the image display\n\r"
-        "gfx  - [0,8,9,20] Set the graphics mode\n\r"
-        "       0 : Text\n\r"
-        "       8,9 : ANTIC modes\n\r"
-        "       20 : VBXE 320x240@256\n\r"
+        "gfx  - [0,8-11,15,20] graphics mode\n\r"
+        "       0 : Graphics 0 text\n\r"
+        "       8 : Graphics 8 320x220 mono\n\r"
+        "       9 : Graphics 9 GTIA 16 shades\n\r"
+        "       10: Graphics 10 GTIA 9 colors\n\r"
+        "       11: Graphics 11 GTIA 16 hues\n\r"
+        "       15: Graphics 15 160x220 4 shd\n\r"
+        "       20: VBXE 320x240 256 colors\n\r"
         "set  - Saved settings\n\r"
         "       server [url] (N:TCP://blah.duh/)\n\r"
         "       model [ai model name] (dall-e-3)\n\r"
@@ -151,6 +155,8 @@ char process_command(byte ntokens)
                 setGraphicsMode(GRAPHICS_10);
             else if (strncmp(tokens[1], "11", 2) == 0)
                 setGraphicsMode(GRAPHICS_11);
+            else if (strncmp(tokens[1], "15", 2) == 0)
+                setGraphicsMode(GRAPHICS_15);
             else if (strncmp(tokens[1], "20", 2) == 0)
             {
                 setGraphicsMode(GRAPHICS_0);  // VBXE renders both the ANTIC and it's own output.  ANTIC is the console.
@@ -165,9 +171,20 @@ char process_command(byte ntokens)
                 settings.gfx_mode = '*';
         }
 
-        // Save the graphics mode if not in text mode
-        if(settings.gfx_mode > GRAPHICS_0 && settings.gfx_mode <= GRAPHICS_20)
-            put_settings(SETTINGS_GFX);  // save the graphics mode on the FN
+        // Save the graphics mode if it is a real display mode (not text or
+        // the '*' sentinel; GRAPHICS_15 is 0x40 so a range check won't do)
+        switch(settings.gfx_mode)
+        {
+            case GRAPHICS_8:
+            case GRAPHICS_9:
+            case GRAPHICS_10:
+            case GRAPHICS_11:
+            case GRAPHICS_15:
+            case GRAPHICS_20:
+            case GRAPHICS_21:
+                put_settings(SETTINGS_GFX);  // save the graphics mode on the FN
+            break;
+        }
     }
 
     if(strncmp(tokens[0], "cls", 3) == 0)
@@ -290,6 +307,8 @@ void start_console(char first_char)
     uint8_t x = 0;   // Char position in the input line
 
     // Fix addresses for graphics display lists for the console buffer
+    // (graphics_8_console_dl doubles as the Graphics 15 console DL; only
+    // the mode nibbles differ and setGraphicsMode retargets those)
     POKEW(gfx8_console_dl + 2, (ushort)version);
     POKEW(gfx8_console_dl + 185, (ushort)console_buff);
     POKEW(gfx9_console_dl + 2, (ushort)version);
@@ -395,8 +414,6 @@ void start_console(char first_char)
                 if(x > 0)
                 {
                     --x;
-                    if (x < 0)
-                        x = 0;
                     CONSOLE_BUFF[x] = 0x0;
                     gotoxy(x%40, x/40);
                 }

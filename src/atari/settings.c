@@ -15,7 +15,12 @@
 #define FN_AIMODEL_KEY_ID 0x03
 
 #define DEFAULT_GFX_MODE GRAPHICS_8
-#define DEFAULT_URL "N:TCP://fujinet.org:5556/"
+// Build-time override for local testing:
+//   CFLAGS='-DYAIL_SERVER_URL=\"N:TCP://localhost:5556/\"' make TARGETS=atari all
+#ifndef YAIL_SERVER_URL
+#define YAIL_SERVER_URL "N:TCP://fujinet.org:5556/"
+#endif
+#define DEFAULT_URL YAIL_SERVER_URL
 #define DEFAULT_AI_MODEL_NAME "dall-e-3"
 
 // Globals
@@ -31,7 +36,7 @@ extern byte buff[];
 // This requires that the default values are set in the arguments.
 uint16_t read_or_create_appkey(uint8_t key_id, uint16_t len, char* data)
 {
-    uint16_t count;
+    uint16_t count = len;  // if the read fails, report the default length
 
     // Set the base key information
     fuji_set_appkey_details(FN_CREATOR_ID, (uint8_t)FN_APP_ID, MAX_APPKEY_LEN);
@@ -39,12 +44,13 @@ uint16_t read_or_create_appkey(uint8_t key_id, uint16_t len, char* data)
     // Try to read the key
     if (fuji_read_appkey(key_id, &count, (uint8_t*)&buff[0]) > 0)
     {
-        // // Key was read so copy over the values
+        // Key was read so copy over the values
         memcpy(data, buff, count);
     }
     else
     {
         // Key doesn't exist. Write the default data
+        count = len;
         fuji_write_appkey(key_id, len, (uint8_t*)data);
     }
 
@@ -86,13 +92,11 @@ uint8_t put_settings(byte select)
             fuji_set_appkey_details(FN_CREATOR_ID, (uint8_t)FN_APP_ID, MAX_APPKEY_LEN);
             return fuji_write_appkey(FN_URL_KEY_ID, len, (uint8_t *)settings.url);
         }
-        break;
         case SETTINGS_GFX:
         {
             fuji_set_appkey_details(FN_CREATOR_ID, (uint8_t)FN_APP_ID, MAX_APPKEY_LEN);
             return fuji_write_appkey(FN_GFX_KEY_ID, 1, (uint8_t *)&settings.gfx_mode);
         }
-        break;
         case SETTINGS_AI_MODEL:
         {
             uint16_t len = strlen(settings.ai_model_name) + 1;
@@ -100,7 +104,6 @@ uint8_t put_settings(byte select)
             fuji_set_appkey_details(FN_CREATOR_ID, (uint8_t)FN_APP_ID, MAX_APPKEY_LEN);
             return fuji_write_appkey(FN_AIMODEL_KEY_ID, len, (uint8_t *)settings.ai_model_name);
         }
-        break;
         default:
             return 0;
     }
